@@ -1,0 +1,45 @@
+{
+  "name": "person-2-collection-fleet-management",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Person 2 Workspace: Sanitation Workers, Fleet & Vehicles, Collection Tasks, GeoJSON Zones, Intelligent Vehicle Recommendation & Live GPS Tracking",
+  "scripts": {
+    "dev": "concurrently -n API,WEB -c blue,emerald \"node server/dev.js\" \"vite\"",
+    "dev:api": "node server/dev.js",
+    "dev:web": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.0",
+    "axios": "^1.8.4",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.500.0",
+    "mongoose": "^8.13.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-leaflet": "^5.0.0",
+    "react-router-dom": "^7.5.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.4",
+    "@types/leaflet": "^1.9.17",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react": "^4.4.1",
+    "concurrently": "^9.1.2",
+    "supertest": "^7.1.0",
+    "tailwindcss": "^4.1.4",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.2"
+  }
+}

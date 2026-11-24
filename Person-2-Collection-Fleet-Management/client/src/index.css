@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+@theme {
+  --color-civic-primary: #0f766e;
+  --color-civic-accent: #0284c7;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.leaflet-container {
+  font-family: var(--font-sans);
+  z-index: 1;
+}

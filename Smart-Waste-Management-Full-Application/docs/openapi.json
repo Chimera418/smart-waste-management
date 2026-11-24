@@ -1,0 +1,34 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "CivicClean SWM — Smart Waste Management API",
+    "version": "1.0.0",
+    "description": "Unified REST API contracts across Citizen, Fleet Operations, and Municipal Administration."
+  },
+  "servers": [{ "url": "/api" }],
+  "paths": {
+    "/health": { "get": { "summary": "Service and MongoDB health status", "responses": { "200": { "description": "OK" } } } },
+    "/auth/register": { "post": { "summary": "Register citizen, worker, operator, or admin", "responses": { "201": { "description": "Created" } } } },
+    "/auth/login": { "post": { "summary": "Authenticate user and issue JWT", "responses": { "200": { "description": "OK" } } } },
+    "/auth/me": { "get": { "summary": "Get authenticated user profile", "responses": { "200": { "description": "OK" } } } },
+    "/complaints": {
+      "get": { "summary": "List complaints scoped by role", "responses": { "200": { "description": "OK" } } },
+      "post": { "summary": "Submit text complaint with GeoJSON, duplicate check, zone match & AI priority", "responses": { "201": { "description": "Created" } } }
+    },
+    "/complaints/check-duplicates": { "post": { "summary": "Check nearby + textual duplicate complaints", "responses": { "200": { "description": "OK" } } } },
+    "/ai/categorize": { "post": { "summary": "Gemini structured JSON waste categorization", "responses": { "200": { "description": "OK" } } } },
+    "/ai/chat": { "post": { "summary": "Gemini citizen waste chatbot", "responses": { "200": { "description": "OK" } } } },
+    "/ai/priority": { "post": { "summary": "Gemini complaint priority estimation", "responses": { "200": { "description": "OK" } } } },
+    "/workers": { "get": { "summary": "List sanitation workers", "responses": { "200": { "description": "OK" } } } },
+    "/vehicles/recommend": { "post": { "summary": "Deterministic vehicle recommendation", "responses": { "200": { "description": "OK" } } } },
+    "/vehicles/tracking": { "get": { "summary": "Live fleet, complaints, and zones for Leaflet map", "responses": { "200": { "description": "OK" } } } },
+    "/vehicles/{id}/location": { "patch": { "summary": "Update vehicle GPS coordinates", "responses": { "200": { "description": "OK" } } } },
+    "/tasks": { "post": { "summary": "Dispatch collection task", "responses": { "201": { "description": "Created" } } } },
+    "/zones": { "get": { "summary": "List GeoJSON collection zones", "responses": { "200": { "description": "OK" } } } },
+    "/analytics/summary": { "get": { "summary": "MongoDB aggregation summary KPIs", "responses": { "200": { "description": "OK" } } } },
+    "/analytics/hotspots": { "get": { "summary": "Geospatial complaint hotspots", "responses": { "200": { "description": "OK" } } } },
+    "/admin/escalations/run": { "post": { "summary": "Run overdue SLA escalation scan", "responses": { "200": { "description": "OK" } } } },
+    "/admin/audit-logs": { "get": { "summary": "Fetch security & admin audit logs", "responses": { "200": { "description": "OK" } } } },
+    "/admin/reports/export": { "get": { "summary": "Export CSV/JSON municipal report", "responses": { "200": { "description": "OK" } } } }
+  }
+}
