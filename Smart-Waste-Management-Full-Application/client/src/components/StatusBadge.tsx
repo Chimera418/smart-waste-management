@@ -1,23 +1,29 @@
-const STYLES: Record<string, string> = {
-  submitted: 'bg-sky-50 text-sky-700 border-sky-200',
-  under_review: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  assigned: 'bg-amber-50 text-amber-800 border-amber-200',
-  accepted: 'bg-cyan-50 text-cyan-800 border-cyan-200',
-  en_route: 'bg-blue-50 text-blue-700 border-blue-200',
-  in_progress: 'bg-purple-50 text-purple-700 border-purple-200',
-  completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  resolved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  rejected: 'bg-rose-50 text-rose-700 border-rose-200',
-  low: 'bg-slate-100 text-slate-700 border-slate-200',
-  medium: 'bg-amber-50 text-amber-700 border-amber-200',
-  high: 'bg-orange-50 text-orange-700 border-orange-200',
-  critical: 'bg-rose-50 text-rose-700 border-rose-200'
+const STYLES: Record<string, { pill: string; dot: string }> = {
+  submitted: { pill: 'bg-[#EFF6FF] text-[#1E40AF] border-[#BFDBFE]', dot: 'bg-[#2563EB]' },
+  under_review: { pill: 'bg-[#F3F4F6] text-[#374151] border-[#D1D5DB]', dot: 'bg-[#6B7280]' },
+  assigned: { pill: 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]', dot: 'bg-[#D97706]' },
+  accepted: { pill: 'bg-[#ECFEFF] text-[#155E75] border-[#A5F3FC]', dot: 'bg-[#0891B2]' },
+  en_route: { pill: 'bg-[#EFF6FF] text-[#1D4ED8] border-[#93C5FD]', dot: 'bg-[#2563EB]' },
+  in_progress: { pill: 'bg-[#FFF7ED] text-[#9A3412] border-[#FED7AA]', dot: 'bg-[#EA580C]' },
+  completed: { pill: 'bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]', dot: 'bg-[#059669]' },
+  resolved: { pill: 'bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]', dot: 'bg-[#059669]' },
+  rejected: { pill: 'bg-[#FEF2F2] text-[#991B1B] border-[#FECACA]', dot: 'bg-[#DC2626]' },
+  low: { pill: 'bg-[#F5F4EF] text-[#4B524E] border-[#D5D2C6]', dot: 'bg-[#6E7671]' },
+  medium: { pill: 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]', dot: 'bg-[#D97706]' },
+  high: { pill: 'bg-[#FFEDD5] text-[#9A3412] border-[#FDBA74]', dot: 'bg-[#EA580C]' },
+  critical: { pill: 'bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5]', dot: 'bg-[#DC2626]' }
 };
 
 export function StatusBadge({ value }: { value: string }) {
-  const cls = STYLES[value] || 'bg-slate-100 text-slate-700 border-slate-200';
+  const cfg = STYLES[value] || {
+    pill: 'bg-[#F5F4EF] text-[#4B524E] border-[#D5D2C6]',
+    dot: 'bg-[#6E7671]'
+  };
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${cls}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold capitalize tracking-wide ${cfg.pill}`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
       {value.replace(/_/g, ' ')}
     </span>
   );

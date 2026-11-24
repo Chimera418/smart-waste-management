@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Recycle } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import type { UserRole } from '../types';
 
@@ -36,84 +36,143 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600 text-white">
-            <Recycle className="h-5 w-5" />
+    <div className="min-h-dvh grid lg:grid-cols-12">
+      <section className="civic-topo-bg hidden flex-col justify-between p-10 text-white lg:col-span-5 lg:flex xl:p-14">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[#14533C] text-[#A7F3D0] ring-1 ring-[#2B7A5B]/60">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1">
+              <path d="M4 17V7l8-4 8 4v10l-8 4-8-4Z" />
+              <path d="M12 3v18M4 7l8 4 8-4" opacity="0.65" />
+            </svg>
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Create CivicClean Account</h1>
-            <p className="text-xs text-slate-500">Choose your municipal portal role</p>
+            <p className="font-display text-base font-bold tracking-tight">CivicClean SWM</p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#8A948E]">
+              Municipal Onboarding
+            </p>
           </div>
         </div>
-        {error && (
-          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            {error}
+
+        <div className="space-y-4">
+          <h1 className="font-display text-3xl font-extrabold leading-tight text-white">
+            Register for real-time waste alerts and live pickup tracking.
+          </h1>
+          <p className="text-sm leading-relaxed text-[#A3ADA7]">
+            Use your real email address to receive instant confirmation, dispatch notifications, and live collection arrival updates.
+          </p>
+        </div>
+
+        <p className="font-mono text-[11px] text-[#6B7570]">CIVICCLEAN · VERIFIED EMAIL ALERTS ENABLED</p>
+      </section>
+
+      <section className="flex items-center justify-center bg-[#F5F4EF] px-6 py-10 lg:col-span-7">
+        <div className="w-full max-w-lg space-y-5">
+          <div>
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-[#14533C]">
+              New Account
+            </p>
+            <h2 className="mt-1 font-display text-2xl font-bold text-[#141917]">
+              Create CivicClean Account
+            </h2>
           </div>
-        )}
-        <form onSubmit={handleSubmit} className="space-y-3.5">
-          <input
-            required
-            placeholder="Full Name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-          <input
-            type="email"
-            required
-            placeholder="Email"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-          <input
-            type="password"
-            required
-            minLength={6}
-            placeholder="Password (min 6 chars)"
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-          <select
-            value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          >
-            <option value="citizen">Citizen</option>
-            <option value="worker">Sanitation Worker</option>
-            <option value="vehicle_operator">Vehicle Operator</option>
-            <option value="admin">Municipal Administrator</option>
-          </select>
-          <input
-            placeholder="Phone"
-            value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-          <input
-            placeholder="Address"
-            value={form.address}
-            onChange={(e) => setForm({ ...form, address: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-lg bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50"
-          >
-            {submitting ? 'Registering...' : 'Create Account'}
-          </button>
-        </form>
-        <p className="mt-5 text-center text-sm text-slate-600">
-          Already have an account?{' '}
-          <Link to="/login" className="font-semibold text-teal-700 hover:underline">
-            Sign in
-          </Link>
-        </p>
-      </div>
+
+          {error && (
+            <div
+              role="alert"
+              className="rounded-lg border border-[#FCA5A5] bg-[#FEF2F2] px-3.5 py-2.5 text-xs font-medium text-[#991B1B]"
+            >
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="civic-card space-y-4 p-6">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[#141917]">Full Name</label>
+                <input
+                  required
+                  placeholder="Aarav Sharma"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className="civic-input"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[#141917]">Role</label>
+                <select
+                  value={form.role}
+                  onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
+                  className="civic-input"
+                >
+                  <option value="citizen">Citizen</option>
+                  <option value="worker">Sanitation Worker</option>
+                  <option value="vehicle_operator">Vehicle Operator</option>
+                  <option value="admin">Municipal Administrator</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[#141917]">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="you@gmail.com"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  className="civic-input"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[#141917]">Password</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  placeholder="Min 6 characters"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  className="civic-input"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[#141917]">Phone</label>
+                <input
+                  placeholder="+91 98765 43210"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  className="civic-input"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[#141917]">Street Address</label>
+                <input
+                  placeholder="14 MG Road, Bengaluru"
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  className="civic-input"
+                />
+              </div>
+            </div>
+
+            <button type="submit" disabled={submitting} className="civic-btn-primary w-full py-2.5">
+              {submitting ? 'Creating account...' : 'Create Account'}
+              {!submitting && <ArrowRight className="h-4 w-4" />}
+            </button>
+          </form>
+
+          <p className="text-center text-sm text-[#5C6460]">
+            Already registered?{' '}
+            <Link to="/login" className="font-semibold text-[#14533C] hover:underline">
+              Sign in
+            </Link>
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

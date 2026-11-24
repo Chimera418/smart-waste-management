@@ -1,18 +1,165 @@
 @import "tailwindcss";
 
 @theme {
-  --color-civic-primary: #0f766e;
-  --color-civic-accent: #0284c7;
-  --color-civic-indigo: #4338ca;
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-civic-canvas: #F5F4EF;
+  --color-civic-surface: #FFFFFF;
+  --color-civic-subtle: #EFEDE6;
+  --color-civic-border: #E2E0D5;
+  --color-civic-ink: #141917;
+  --color-civic-muted: #5C6460;
+  --color-civic-forest: #14533C;
+  --color-civic-forest-hover: #0E3E2C;
+  --color-civic-amber: #B45309;
+  --color-civic-vermilion: #B91C1C;
+  --color-civic-cobalt: #1D4ED8;
 }
 
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-civic-canvas);
+    color: var(--color-civic-ink);
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  button:not(:disabled),
+  a[href] {
+    cursor: pointer;
+  }
+}
+
+/* Tabular numbers for KPIs, weights, ETAs, and coordinates */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle editorial card surface */
+.civic-card {
+  background-color: #ffffff;
+  border: 1px solid #E2E0D5;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(20, 25, 23, 0.04);
+}
+
+/* Consistent accessible input field */
+.civic-input {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #D5D2C6;
+  background-color: #ffffff;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.875rem;
+  color: #141917;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.civic-input:focus {
+  outline: none;
+  border-color: #14533C;
+  box-shadow: 0 0 0 3px rgba(20, 83, 60, 0.14);
+}
+
+.civic-input::placeholder {
+  color: #8A918C;
+}
+
+/* Primary & secondary actions */
+.civic-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 8px;
+  background-color: #14533C;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.55rem 1rem;
+  transition: background-color 160ms ease, transform 120ms ease;
+}
+
+.civic-btn-primary:hover:not(:disabled) {
+  background-color: #0E3E2C;
+}
+
+.civic-btn-primary:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.civic-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.civic-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 8px;
+  border: 1px solid #D5D2C6;
+  background-color: #ffffff;
+  color: #141917;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.5rem 0.9rem;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.civic-btn-secondary:hover:not(:disabled) {
+  background-color: #F5F4EF;
+  border-color: #BDB9AA;
+}
+
+/* Architectural grid texture for editorial dark panels */
+.civic-topo-bg {
+  background-color: #111513;
+  background-image:
+    radial-gradient(circle at 18% 22%, rgba(20, 83, 60, 0.34), transparent 46%),
+    radial-gradient(circle at 86% 82%, rgba(180, 83, 9, 0.16), transparent 42%),
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 36px 36px, 36px 36px;
+}
+
+/* Restrained entrance animation */
+@keyframes civic-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.civic-enter {
+  animation: civic-fade-up 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .civic-enter,
+  .swm-radar-ring,
+  .swm-beacon-ring {
+    animation: none !important;
+  }
+}
+
+/* Leaflet map styling & smooth vehicle glide */
 .leaflet-container {
   font-family: var(--font-sans);
   z-index: 1;
 }
 
-/* Smooth gliding motion for live GPS fleet markers without lagging map zoom */
 .swm-live-vehicle-marker {
   background: transparent !important;
   border: none !important;
@@ -63,8 +210,8 @@
   animation: swm-beacon-pulse 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 
-/* Clean municipal popup styling */
 .leaflet-popup-content-wrapper {
-  border-radius: 12px !important;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.2) !important;
+  border-radius: 10px !important;
+  border: 1px solid #E2E0D5;
+  box-shadow: 0 12px 28px rgba(20, 25, 23, 0.16) !important;
 }

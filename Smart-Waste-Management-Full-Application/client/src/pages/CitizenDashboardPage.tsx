@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bot, CheckCircle2, Clock, FilePlus2, FileWarning } from 'lucide-react';
+import { ArrowUpRight, Bot, FilePlus2, MapPin } from 'lucide-react';
 import api from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAuth } from '../context/AuthContext';
@@ -18,76 +18,98 @@ export function CitizenDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#E2E0D5] pb-5">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Welcome, {user?.name}</h1>
-          <p className="text-sm text-slate-600">Report waste issues in plain text and track cleanup progress live.</p>
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-[#14533C]">
+            Citizen Portal
+          </p>
+          <h1 className="mt-1 text-2xl font-bold text-[#141917]">Welcome back, {user?.name}</h1>
+          <p className="mt-1 text-sm text-[#5C6460]">
+            Report municipal waste issues in plain language and follow assigned vehicles live.
+          </p>
         </div>
-        <div className="flex gap-2.5">
-          <Link
-            to="/chatbot"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            <Bot className="h-4 w-4 text-teal-600" />
+        <div className="flex flex-wrap gap-2">
+          <Link to="/chatbot" className="civic-btn-secondary">
+            <Bot className="h-4 w-4 text-[#14533C]" />
             Waste Assistant
           </Link>
-          <Link
-            to="/complaints/new"
-            className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
-          >
+          <Link to="/complaints/new" className="civic-btn-primary">
             <FilePlus2 className="h-4 w-4" />
-            Submit Complaint
+            Report Issue
           </Link>
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>TOTAL SUBMITTED</span>
-            <FileWarning className="h-4 w-4 text-sky-600" />
-          </div>
-          <p className="mt-2 text-3xl font-bold">{complaints.length}</p>
+      {/* Unified Hairline Metric Bar */}
+      <div className="civic-card grid divide-y divide-[#E2E0D5] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <div className="p-5">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-[#78807B]">
+            Total Submitted
+          </p>
+          <p className="mt-2 font-display text-3xl font-extrabold text-[#141917] tabular-nums">
+            {complaints.length}
+          </p>
+          <p className="mt-1 text-xs text-[#78807B]">All logged reports</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>IN PROGRESS / OPEN</span>
-            <Clock className="h-4 w-4 text-amber-600" />
-          </div>
-          <p className="mt-2 text-3xl font-bold">{active}</p>
+        <div className="p-5">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-[#78807B]">
+            Active / In Progress
+          </p>
+          <p className="mt-2 font-display text-3xl font-extrabold text-[#B45309] tabular-nums">{active}</p>
+          <p className="mt-1 text-xs text-[#78807B]">Awaiting or undergoing pickup</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>RESOLVED</span>
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-          </div>
-          <p className="mt-2 text-3xl font-bold">{resolved}</p>
+        <div className="p-5">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-[#78807B]">
+            Resolved
+          </p>
+          <p className="mt-2 font-display text-3xl font-extrabold text-[#14533C] tabular-nums">{resolved}</p>
+          <p className="mt-1 text-xs text-[#78807B]">Cleared & verified</p>
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
-          <h2 className="text-sm font-semibold">Recent Complaints</h2>
-          <Link to="/complaints" className="text-xs font-semibold text-teal-700 hover:underline">
-            View all
+      <div className="civic-card overflow-hidden">
+        <div className="flex items-center justify-between border-b border-[#E2E0D5] bg-[#FAF9F6] px-5 py-3.5">
+          <h2 className="text-sm font-bold text-[#141917]">Recent Reports</h2>
+          <Link
+            to="/complaints"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-[#14533C] hover:underline"
+          >
+            Track live on map <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </div>
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-[#EFECE4]">
           {complaints.length === 0 ? (
-            <div className="p-6 text-sm text-slate-500">No complaints submitted yet.</div>
+            <div className="p-8 text-center">
+              <p className="text-sm font-medium text-[#141917]">No reports filed yet</p>
+              <p className="mt-1 text-xs text-[#5C6460]">
+                Submit your first waste report or chat with the Waste Assistant to log one quickly.
+              </p>
+              <Link to="/complaints/new" className="civic-btn-primary mt-4">
+                <FilePlus2 className="h-4 w-4" /> File a Report
+              </Link>
+            </div>
           ) : (
             complaints.slice(0, 6).map((c) => (
-              <div key={c._id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5">
-                <div>
-                  <span className="font-mono text-xs font-semibold text-slate-500">{c.complaintCode}</span>{' '}
-                  <span className="text-sm font-semibold text-slate-900">{c.title}</span>
-                  <p className="text-xs text-slate-500">{c.address}</p>
+              <Link
+                key={c._id}
+                to="/complaints"
+                className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 transition hover:bg-[#FAF9F6]"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-semibold text-[#14533C]">{c.complaintCode}</span>
+                    <span className="truncate text-sm font-semibold text-[#141917]">{c.title}</span>
+                  </div>
+                  <p className="mt-0.5 flex items-center gap-1 text-xs text-[#5C6460]">
+                    <MapPin className="h-3 w-3 shrink-0 text-[#8A918C]" />
+                    <span className="truncate">{c.address}</span>
+                  </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <StatusBadge value={c.priority} />
                   <StatusBadge value={c.status} />
                 </div>
-              </div>
+              </Link>
             ))
           )}
         </div>
