@@ -88,21 +88,44 @@ router.get(
         .limit(150),
       CollectionZone.find({ isActive: true }).select('name code wardNumber boundary center'),
       CollectionTask.find({ status: { $in: ['assigned', 'accepted', 'en_route', 'in_progress'] } })
-        .select('taskCode status assignedVehicleId complaintId milestonesNotified')
-        .populate('complaintId', 'complaintCode title location address')
+        .select('taskCode status priority assignedVehicleId complaintId milestonesNotified createdAt')
+        .populate('complaintId', 'complaintCode title status assignedTaskId location address')
+        .sort({ createdAt: 1 })
         .lean()
     ]);
 
     const vehicleMap = new Map(vehicles.map((v) => [v._id.toString(), v]));
-    const enrichedTasks = activeTasks.map((t) => {
-      const v = vehicleMap.get(t.assignedVehicleId?.toString());
-      const vCoords = v?.currentLocation?.coordinates;
-      const cCoords = t.complaintId?.location?.coordinates;
-      const distanceKm = vCoords && cCoords ? haversineKm(vCoords, cCoords) : null;
-      const etaMinutes =
-        distanceKm === null ? null : distanceKm <= 0.08 ? 0 : Math.max(1, Math.ceil((distanceKm / 30) * 60));
-      return { ...t, distanceKm, etaMinutes };
+    const seenVehicles = new Set();
+    const validActiveTasks = activeTasks.filter((t) => {
+      const c = t.complaintId;
+      if (!c || ['resolved', 'rejected'].includes(c.status)) return false;
+      if (c.assignedTaskId && String(c.assignedTaskId) !== String(t._id)) return false;
+      return true;
     });
+
+    // Show each vehicle's primary active task first (preferring un-arrived tasks)
+    validActiveTasks.sort((a, b) => {
+      const aArr = (a.milestonesNotified || []).includes('arrived') ? 1 : 0;
+      const bArr = (b.milestonesNotified || []).includes('arrived') ? 1 : 0;
+      return aArr - bArr;
+    });
+
+    const enrichedTasks = validActiveTasks
+      .filter((t) => {
+        const vId = t.assignedVehicleId?.toString();
+        if (!vId || seenVehicles.has(vId)) return false;
+        seenVehicles.add(vId);
+        return true;
+      })
+      .map((t) => {
+        const v = vehicleMap.get(t.assignedVehicleId?.toString());
+        const vCoords = v?.currentLocation?.coordinates;
+        const cCoords = t.complaintId?.location?.coordinates;
+        const distanceKm = vCoords && cCoords ? haversineKm(vCoords, cCoords) : null;
+        const etaMinutes =
+          distanceKm === null ? null : distanceKm <= 0.09 ? 0 : Math.max(1, Math.ceil((distanceKm / 40) * 60));
+        return { ...t, distanceKm, etaMinutes };
+      });
 
     return sendSuccess(res, {
       data: {

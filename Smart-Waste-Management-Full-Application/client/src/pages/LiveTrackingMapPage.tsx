@@ -203,7 +203,7 @@ export function LiveTrackingMapPage() {
             ))}
 
             {data.vehicles.map((v) => {
-              const trail = (v.locationHistory || []).map(
+              const trail = (v.locationHistory || []).slice(-10).map(
                 (pt: any) => [pt.coordinates[1], pt.coordinates[0]] as [number, number]
               );
               const latest = v.locationHistory?.[v.locationHistory.length - 1];

@@ -85,6 +85,26 @@ router.post(
     if (!worker) throw new AppError(404, 'WORKER_NOT_FOUND', 'Worker not found');
     if (!vehicle) throw new AppError(404, 'VEHICLE_NOT_FOUND', 'Vehicle not found');
 
+    // Cancel any older active task on the same complaint when reassigning
+    if (complaint.assignedTaskId) {
+      await CollectionTask.findOneAndUpdate(
+        {
+          _id: complaint.assignedTaskId,
+          status: { $in: ['assigned', 'accepted', 'en_route', 'in_progress'] }
+        },
+        {
+          status: 'cancelled',
+          $push: {
+            statusHistory: {
+              status: 'cancelled',
+              note: 'Superseded by reassigned collection task',
+              updatedBy: req.user._id
+            }
+          }
+        }
+      );
+    }
+
     const task = await CollectionTask.create({
       taskCode: generateCode('TSK'),
       complaintId: complaint._id,
