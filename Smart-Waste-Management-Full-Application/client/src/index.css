@@ -11,3 +11,60 @@
   font-family: var(--font-sans);
   z-index: 1;
 }
+
+/* Smooth gliding motion for live GPS fleet markers without lagging map zoom */
+.swm-live-vehicle-marker {
+  background: transparent !important;
+  border: none !important;
+  transition: transform 1.05s linear;
+}
+
+.swm-complaint-marker,
+.swm-picker-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+@keyframes swm-radar-pulse {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+}
+
+@keyframes swm-beacon-pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.85;
+  }
+  75% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+.swm-radar-ring {
+  animation: swm-radar-pulse 2.1s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.swm-beacon-ring {
+  animation: swm-beacon-pulse 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+/* Clean municipal popup styling */
+.leaflet-popup-content-wrapper {
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.2) !important;
+}

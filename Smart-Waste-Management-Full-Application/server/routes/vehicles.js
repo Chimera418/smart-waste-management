@@ -7,7 +7,13 @@ import { Complaint } from '../shared/models/Complaint.js';
 import { VEHICLE_STATUSES, VEHICLE_TYPES, WASTE_CATEGORIES } from '../shared/config/constants.js';
 import { authenticate, authorize } from '../shared/middleware/auth.js';
 import { validateBody } from '../shared/middleware/validate.js';
-import { recommendVehicles } from '../shared/services/vehicleRecommendationService.js';
+import { recommendVehicles, haversineKm } from '../shared/services/vehicleRecommendationService.js';
+import {
+  getSimulationState,
+  maybeAutoSimulateStep,
+  setSimulationPaused,
+  simulateFleetStep
+} from '../shared/services/vehicleSimulationService.js';
 import { AppError, asyncHandler, sendSuccess } from '../shared/utils/response.js';
 
 const router = express.Router();
@@ -71,6 +77,8 @@ router.get(
   authenticate,
   authorize('admin', 'worker', 'vehicle_operator'),
   asyncHandler(async (_req, res) => {
+    await maybeAutoSimulateStep(1000);
+
     const [vehicles, activeComplaints, zones, activeTasks] = await Promise.all([
       Vehicle.find({ status: { $ne: 'inactive' } })
         .populate('operatorId', 'name phone')
@@ -80,10 +88,56 @@ router.get(
         .limit(150),
       CollectionZone.find({ isActive: true }).select('name code wardNumber boundary center'),
       CollectionTask.find({ status: { $in: ['assigned', 'accepted', 'en_route', 'in_progress'] } })
-        .select('taskCode status assignedVehicleId complaintId')
+        .select('taskCode status assignedVehicleId complaintId milestonesNotified')
         .populate('complaintId', 'complaintCode title location address')
+        .lean()
     ]);
-    return sendSuccess(res, { data: { vehicles, activeComplaints, zones, activeTasks } });
+
+    const vehicleMap = new Map(vehicles.map((v) => [v._id.toString(), v]));
+    const enrichedTasks = activeTasks.map((t) => {
+      const v = vehicleMap.get(t.assignedVehicleId?.toString());
+      const vCoords = v?.currentLocation?.coordinates;
+      const cCoords = t.complaintId?.location?.coordinates;
+      const distanceKm = vCoords && cCoords ? haversineKm(vCoords, cCoords) : null;
+      const etaMinutes =
+        distanceKm === null ? null : distanceKm <= 0.08 ? 0 : Math.max(1, Math.ceil((distanceKm / 30) * 60));
+      return { ...t, distanceKm, etaMinutes };
+    });
+
+    return sendSuccess(res, {
+      data: {
+        vehicles,
+        activeComplaints,
+        zones,
+        activeTasks: enrichedTasks,
+        simulation: getSimulationState()
+      }
+    });
+  })
+);
+
+router.post(
+  '/simulation-toggle',
+  authenticate,
+  authorize('admin', 'vehicle_operator'),
+  asyncHandler(async (req, res) => {
+    const paused = typeof req.body?.paused === 'boolean' ? req.body.paused : !getSimulationState().paused;
+    const state = setSimulationPaused(paused);
+    return sendSuccess(res, {
+      message: state.running ? 'Live fleet simulation resumed' : 'Live fleet simulation paused',
+      data: state
+    });
+  })
+);
+
+router.post(
+  '/simulate-step',
+  authenticate,
+  authorize('admin', 'vehicle_operator'),
+  asyncHandler(async (req, res) => {
+    const vehicleId = req.body?.vehicleId || null;
+    const result = await simulateFleetStep({ vehicleId, actor: req.user });
+    return sendSuccess(res, { message: 'Fleet movement simulated', data: result });
   })
 );
 

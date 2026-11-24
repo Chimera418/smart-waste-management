@@ -31,7 +31,8 @@ const collectionTaskSchema = new mongoose.Schema(
     scheduledFor: { type: Date },
     acceptedAt: { type: Date },
     startedAt: { type: Date },
-    completedAt: { type: Date }
+    completedAt: { type: Date },
+    milestonesNotified: [{ type: String }]
   },
   { timestamps: true, collection: 'collectionTasks' }
 );

@@ -104,9 +104,10 @@ router.patch(
       recipientRole: 'citizen',
       type: 'status_updated',
       title: `Priority Updated (${complaint.complaintCode})`,
-      message: `Municipal admin updated priority to ${req.body.priority.toUpperCase()}.`,
+      message: `Municipal admin updated priority to ${req.body.priority.toUpperCase()} (${req.body.overrideReason}).`,
       relatedEntityType: 'complaint',
-      relatedEntityId: complaint._id
+      relatedEntityId: complaint._id,
+      sendEmail: true
     });
 
     await recordAudit({

@@ -154,18 +154,31 @@ describe('Full Integrated Application — Cross-Module End-to-End Workflow', () 
       priority: 'medium'
     });
 
-    // 4. Citizen Chatbot persists conversation history across refreshes
+    // 4. Citizen Chatbot checks status, files a complaint, and persists history
     const chatRes = await request(app)
       .post('/api/ai/chat')
       .set('Authorization', `Bearer ${citToken}`)
-      .send({ message: 'How to submit a complaint?' });
+      .send({ message: 'Check status of my complaints' });
     expect(chatRes.status).toBe(200);
+    expect(chatRes.body.data.actionType).toBe('status_lookup');
+    expect(chatRes.body.data.actionData.complaints.length).toBe(2);
+
+    const submitChat = await request(app)
+      .post('/api/ai/chat')
+      .set('Authorization', `Bearer ${citToken}`)
+      .send({ message: 'Report overflowing plastic bottles at 88 Residency Road, around 40kg' });
+    expect(submitChat.status).toBe(200);
+    expect(submitChat.body.data.actionType).toBe('complaint_created');
 
     const chatHist = await request(app)
       .get('/api/ai/chat/history')
       .set('Authorization', `Bearer ${citToken}`);
     expect(chatHist.status).toBe(200);
-    expect(chatHist.body.data.length).toBe(2);
+    expect(chatHist.body.data.length).toBe(4);
+    expect(chatHist.body.data.some((m) => m.actionType === 'complaint_created')).toBe(true);
+
+    // Clean up chat-created test complaint so summary counts stay exact
+    await Complaint.deleteOne({ _id: submitChat.body.data.actionData.complaint._id });
 
     const chatDel = await request(app)
       .delete('/api/ai/chat/history')
@@ -195,7 +208,33 @@ describe('Full Integrated Application — Cross-Module End-to-End Workflow', () 
     expect(taskRes.status).toBe(201);
     const taskId = taskRes.body.data._id;
 
-    // 6. Operator updates live GPS & Worker completes task
+    // Admin complaint feed exposes populated worker, vehicle & operator details
+    const adminComplaints = await request(app)
+      .get('/api/complaints')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(adminComplaints.status).toBe(200);
+    const assignedComplaint = adminComplaints.body.data.find((x) => x._id === c1.body.data._id);
+    expect(assignedComplaint.assignedTaskId.assignedWorkerId.userId.name).toBe('Worker B');
+    expect(assignedComplaint.assignedTaskId.assignedVehicleId.registrationNumber).toBe('KA-01-HZ-500');
+
+    // 6. Simulate live vehicle movement toward complaint -> verify milestone alerts & citizen live tracking
+    for (let i = 0; i < 4; i++) {
+      const simRes = await request(app)
+        .post('/api/vehicles/simulate-step')
+        .set('Authorization', `Bearer ${opToken}`)
+        .send({ vehicleId });
+      expect(simRes.status).toBe(200);
+    }
+
+    const citTrack = await request(app)
+      .get(`/api/complaints/${c1.body.data._id}/tracking`)
+      .set('Authorization', `Bearer ${citToken}`);
+    expect(citTrack.status).toBe(200);
+    expect(citTrack.body.data.vehicle.locationHistory.length).toBeGreaterThanOrEqual(4);
+    expect(citTrack.body.data.distanceKm).toBe(0);
+    expect(citTrack.body.data.milestonesNotified).toContain('arrived');
+
+    // Operator manual GPS + Worker completes task
     const gpsRes = await request(app)
       .patch(`/api/vehicles/${vehicleId}/location`)
       .set('Authorization', `Bearer ${opToken}`)
@@ -211,10 +250,11 @@ describe('Full Integrated Application — Cross-Module End-to-End Workflow', () 
     const resolvedComplaint = await Complaint.findById(c1.body.data._id);
     expect(resolvedComplaint.status).toBe('resolved');
 
-    // 7. Citizen received completion notification
+    // 7. Citizen received milestone (en route / arrived) & completion notifications
     const citNotifs = await request(app)
       .get('/api/notifications')
       .set('Authorization', `Bearer ${citToken}`);
+    expect(citNotifs.body.data.items.some((n) => n.type === 'task_updated')).toBe(true);
     expect(citNotifs.body.data.items.some((n) => n.type === 'task_completed')).toBe(true);
 
     // 8. Escalate overdue c2 once; cooldown blocks duplicate escalation

@@ -1,19 +1,15 @@
 import express from 'express';
 import { z } from 'zod';
 import { Complaint } from '../shared/models/Complaint.js';
-import { CollectionZone } from '../shared/models/CollectionZone.js';
-import { User } from '../shared/models/User.js';
+import { CollectionTask } from '../shared/models/CollectionTask.js';
 import { WASTE_CATEGORIES } from '../shared/config/constants.js';
 import { authenticate, authorize } from '../shared/middleware/auth.js';
 import { validateBody } from '../shared/middleware/validate.js';
-import {
-  categorizeWasteComplaint,
-  estimateComplaintPriority
-} from '../shared/services/geminiService.js';
 import { detectPotentialDuplicates } from '../shared/services/duplicateService.js';
-import { dispatchNotification } from '../shared/services/notificationService.js';
-import { recordAudit } from '../shared/services/auditService.js';
-import { AppError, asyncHandler, generateCode, sendSuccess } from '../shared/utils/response.js';
+import { createComplaintRecord } from '../shared/services/complaintService.js';
+import { haversineKm } from '../shared/services/vehicleRecommendationService.js';
+import { maybeAutoSimulateStep } from '../shared/services/vehicleSimulationService.js';
+import { AppError, asyncHandler, sendSuccess } from '../shared/utils/response.js';
 
 const router = express.Router();
 
@@ -41,6 +37,23 @@ const createComplaintSchema = z.object({
   aiFallbackUsed: z.boolean().optional()
 });
 
+const TASK_POPULATE = {
+  path: 'assignedTaskId',
+  select: 'taskCode status priority milestonesNotified scheduledFor completedAt assignedWorkerId assignedVehicleId',
+  populate: [
+    {
+      path: 'assignedWorkerId',
+      select: 'employeeCode availability shift phone userId',
+      populate: { path: 'userId', select: 'name email phone' }
+    },
+    {
+      path: 'assignedVehicleId',
+      select: 'registrationNumber name type status currentLocation operatorId',
+      populate: { path: 'operatorId', select: 'name phone' }
+    }
+  ]
+};
+
 router.get(
   '/',
   authenticate,
@@ -67,7 +80,7 @@ router.get(
       Complaint.find(filter)
         .populate('citizenId', 'name email phone')
         .populate('zoneId', 'name code')
-        .populate('assignedTaskId', 'taskCode status')
+        .populate(TASK_POPULATE)
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit),
@@ -100,118 +113,11 @@ router.post(
   authorize('citizen', 'admin'),
   validateBody(createComplaintSchema),
   asyncHandler(async (req, res) => {
-    const { title, description, coordinates, address, landmark, estimatedWeightKg } = req.body;
-
-    const aiCat = req.body.aiSuggestedCategory
-      ? {
-          suggestedCategory: req.body.aiSuggestedCategory,
-          confidence: req.body.aiConfidence ?? 0.85,
-          issueType: req.body.aiIssueType || 'Citizen-Verified Waste Issue',
-          summary: req.body.aiSummary || description.slice(0, 180),
-          keywords: req.body.aiKeywords || [],
-          modelUsed: req.body.aiModelUsed || 'gemini-3-flash-preview',
-          fallbackUsed: Boolean(req.body.aiFallbackUsed)
-        }
-      : await categorizeWasteComplaint({ title, description });
-
-    const finalCategory = req.body.wasteCategory || aiCat.suggestedCategory;
-
-    const [duplicateAnalysis, priorityEstimate, matchedZone] = await Promise.all([
-      detectPotentialDuplicates({
-        title,
-        description,
-        coordinates,
-        wasteCategory: finalCategory,
-        useAiContext: true
-      }),
-      estimateComplaintPriority({
-        description,
-        wasteCategory: finalCategory,
-        coordinates,
-        submittedAt: new Date()
-      }),
-      CollectionZone.findOne({
-        isActive: true,
-        boundary: { $geoIntersects: { $geometry: { type: 'Point', coordinates } } }
-      }).select('_id name code')
-    ]);
-
-    const complaint = await Complaint.create({
-      complaintCode: generateCode('SWM'),
-      citizenId: req.user._id,
-      title,
-      description,
-      wasteCategory: finalCategory,
-      aiCategorization: {
-        ...aiCat,
-        userAccepted: finalCategory === aiCat.suggestedCategory
-      },
-      priority: priorityEstimate.suggestedPriority,
-      aiPriority: {
-        suggestedPriority: priorityEstimate.suggestedPriority,
-        score: priorityEstimate.score,
-        reasoning: priorityEstimate.reasoning,
-        ruleAdjustments: priorityEstimate.ruleAdjustments,
-        overriddenByAdmin: false,
-        modelUsed: priorityEstimate.modelUsed,
-        fallbackUsed: priorityEstimate.fallbackUsed
-      },
-      estimatedWeightKg,
-      location: { type: 'Point', coordinates },
-      address,
-      landmark,
-      zoneId: matchedZone?._id,
-      status: 'submitted',
-      statusHistory: [
-        {
-          status: 'submitted',
-          note: duplicateAnalysis.isPotentialDuplicate
-            ? 'Submitted with potential nearby duplicate flagged for triage.'
-            : 'Complaint registered and auto-prioritized.',
-          changedBy: req.user._id
-        }
-      ],
-      duplicateAnalysis,
-      slaDeadline: priorityEstimate.slaDeadline
-    });
-
-    await dispatchNotification({
-      recipientId: req.user._id,
-      recipientRole: req.user.role,
-      type: 'complaint_submitted',
-      title: `Complaint ${complaint.complaintCode} Registered`,
-      message: `Logged as ${finalCategory} (${complaint.priority.toUpperCase()} priority) at ${address}.`,
-      relatedEntityType: 'complaint',
-      relatedEntityId: complaint._id
-    });
-
-    const admins = await User.find({ role: 'admin', isActive: true }).select('_id');
-    await Promise.all(
-      admins.map((a) =>
-        dispatchNotification({
-          recipientId: a._id,
-          recipientRole: 'admin',
-          type: 'complaint_submitted',
-          title: `New ${complaint.priority.toUpperCase()} Complaint (${complaint.complaintCode})`,
-          message: `${title} at ${address}${matchedZone ? ` [${matchedZone.code}]` : ''}.`,
-          relatedEntityType: 'complaint',
-          relatedEntityId: complaint._id
-        })
-      )
-    );
-
-    await recordAudit({
-      actor: req.user,
-      action: 'COMPLAINT_SUBMITTED',
-      resourceType: 'complaint',
-      resourceId: complaint._id,
+    const complaint = await createComplaintRecord({
+      user: req.user,
+      payload: req.body,
       req,
-      metadata: {
-        complaintCode: complaint.complaintCode,
-        category: finalCategory,
-        priority: complaint.priority,
-        zoneCode: matchedZone?.code || null
-      }
+      source: 'portal'
     });
 
     return sendSuccess(res, {
@@ -223,13 +129,62 @@ router.post(
 );
 
 router.get(
+  '/:id/tracking',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    await maybeAutoSimulateStep(1000);
+
+    const complaint = await Complaint.findById(req.params.id).select(
+      'complaintCode title address status priority wasteCategory location citizenId assignedTaskId'
+    );
+    if (!complaint) throw new AppError(404, 'COMPLAINT_NOT_FOUND', 'Complaint not found');
+    if (
+      req.user.role === 'citizen' &&
+      complaint.citizenId?.toString() !== req.user._id.toString()
+    ) {
+      throw new AppError(403, 'FORBIDDEN', 'You can only track your own complaints');
+    }
+
+    let task = null;
+    let vehicle = null;
+    let distanceKm = null;
+    let etaMinutes = null;
+    let speedKmh = 0;
+    let heading = 0;
+    let milestonesNotified = [];
+
+    if (complaint.assignedTaskId) {
+      task = await CollectionTask.findById(complaint.assignedTaskId)
+        .populate('assignedVehicleId', 'registrationNumber name type status currentLocation locationHistory locationUpdatedAt')
+        .populate({
+          path: 'assignedWorkerId',
+          populate: { path: 'userId', select: 'name phone' }
+        });
+      vehicle = task?.assignedVehicleId || null;
+      milestonesNotified = task?.milestonesNotified || [];
+      const latestPoint = vehicle?.locationHistory?.[vehicle.locationHistory.length - 1];
+      speedKmh = latestPoint?.speedKmh ?? 0;
+      heading = latestPoint?.heading ?? 0;
+      if (vehicle?.currentLocation?.coordinates && complaint.location?.coordinates) {
+        distanceKm = haversineKm(vehicle.currentLocation.coordinates, complaint.location.coordinates);
+        etaMinutes = distanceKm <= 0.08 ? 0 : Math.max(1, Math.ceil((distanceKm / 30) * 60));
+      }
+    }
+
+    return sendSuccess(res, {
+      data: { complaint, task, vehicle, distanceKm, etaMinutes, speedKmh, heading, milestonesNotified }
+    });
+  })
+);
+
+router.get(
   '/:id',
   authenticate,
   asyncHandler(async (req, res) => {
     const complaint = await Complaint.findById(req.params.id)
       .populate('citizenId', 'name email phone')
       .populate('zoneId', 'name code')
-      .populate('assignedTaskId');
+      .populate(TASK_POPULATE);
     if (!complaint) throw new AppError(404, 'COMPLAINT_NOT_FOUND', 'Complaint not found');
     if (
       req.user.role === 'citizen' &&

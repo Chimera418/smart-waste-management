@@ -135,9 +135,10 @@ router.post(
         recipientRole: 'citizen',
         type: 'status_updated',
         title: `Crew Assigned (${complaint.complaintCode})`,
-        message: `Vehicle ${vehicle.registrationNumber} has been assigned to collect your reported waste.`,
+        message: `Vehicle ${vehicle.registrationNumber} (${vehicle.name}) has been assigned to collect your reported waste at ${complaint.address}. Track it live in My Complaints.`,
         relatedEntityType: 'complaint',
-        relatedEntityId: complaint._id
+        relatedEntityId: complaint._id,
+        sendEmail: true
       }),
       vehicle.operatorId
         ? dispatchNotification({
@@ -147,7 +148,8 @@ router.post(
             title: `Route Dispatched (${task.taskCode})`,
             message: `Vehicle ${vehicle.registrationNumber} assigned to ${complaint.address}.`,
             relatedEntityType: 'task',
-            relatedEntityId: task._id
+            relatedEntityId: task._id,
+            sendEmail: true
           })
         : Promise.resolve()
     ]);
@@ -240,20 +242,51 @@ router.patch(
     if (!task) throw new AppError(404, 'TASK_NOT_FOUND', 'Task not found');
 
     task.status = req.body.status;
-    if (req.body.status === 'en_route' && !task.startedAt) task.startedAt = new Date();
+    if (req.body.status === 'en_route') {
+      if (!task.startedAt) task.startedAt = new Date();
+      const complaint = await Complaint.findById(task.complaintId);
+      if (complaint) {
+        await dispatchNotification({
+          recipientId: complaint.citizenId,
+          recipientRole: 'citizen',
+          type: 'task_updated',
+          title: `Collection Crew En Route (${complaint.complaintCode})`,
+          message: `Task ${task.taskCode} is now en route to ${complaint.address}. Track the vehicle live in My Complaints.`,
+          relatedEntityType: 'complaint',
+          relatedEntityId: complaint._id,
+          sendEmail: true
+        });
+      }
+    }
     if (req.body.status === 'in_progress') {
       if (!task.startedAt) task.startedAt = new Date();
-      await Complaint.findByIdAndUpdate(task.complaintId, {
-        status: 'in_progress',
-        $push: {
-          statusHistory: {
-            status: 'in_progress',
-            note: req.body.note || 'Collection crew is on-site.',
-            changedBy: req.user._id
+      const complaint = await Complaint.findByIdAndUpdate(
+        task.complaintId,
+        {
+          status: 'in_progress',
+          $push: {
+            statusHistory: {
+              status: 'in_progress',
+              note: req.body.note || 'Collection crew is on-site.',
+              changedBy: req.user._id
+            }
           }
-        }
-      });
+        },
+        { new: true }
+      );
       await Vehicle.findByIdAndUpdate(task.assignedVehicleId, { status: 'in_transit' });
+      if (complaint) {
+        await dispatchNotification({
+          recipientId: complaint.citizenId,
+          recipientRole: 'citizen',
+          type: 'task_updated',
+          title: `Crew Working On-Site (${complaint.complaintCode})`,
+          message: req.body.note || `Collection crew is actively clearing waste at ${complaint.address}.`,
+          relatedEntityType: 'complaint',
+          relatedEntityId: complaint._id,
+          sendEmail: true
+        });
+      }
     }
 
     if (req.body.status === 'completed') {

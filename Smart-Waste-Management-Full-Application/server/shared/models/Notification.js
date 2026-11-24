@@ -11,7 +11,11 @@ const notificationSchema = new mongoose.Schema(
     relatedEntityType: { type: String, default: 'complaint' },
     relatedEntityId: { type: mongoose.Schema.Types.ObjectId },
     isRead: { type: Boolean, default: false, index: true },
-    emailSent: { type: Boolean, default: false }
+    emailSent: { type: Boolean, default: false },
+    emailMode: { type: String, enum: ['resend', 'smtp', 'ethereal', 'none'], default: 'none' },
+    emailRecipient: { type: String, default: '' },
+    emailPreviewUrl: { type: String, default: '' },
+    emailError: { type: String, default: '' }
   },
   { timestamps: true }
 );

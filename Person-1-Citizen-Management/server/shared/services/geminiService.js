@@ -134,10 +134,34 @@ Existing Complaint: ${existingText}`;
   }
 }
 
-export async function chatWithCitizen({ message, history = [] }) {
+const chatIntentSchema = z.object({
+  intent: z.enum(['check_status', 'submit_complaint', 'general_help']),
+  reply: z.string().min(2).max(2000),
+  complaintCode: z.string().nullable().optional().default(null),
+  complaintDraft: z
+    .object({
+      title: z.string().max(160).nullish(),
+      description: z.string().max(3000).nullish(),
+      wasteCategory: z.enum(WASTE_CATEGORIES).nullish(),
+      address: z.string().max(300).nullish(),
+      landmark: z.string().max(150).nullish(),
+      estimatedWeightKg: z.number().min(1).max(20000).nullish(),
+      readyToSubmit: z.boolean().nullish()
+    })
+    .nullable()
+    .optional()
+    .default(null)
+});
+
+export async function chatWithCitizen({
+  message,
+  history = [],
+  userComplaints = [],
+  userAddress = ''
+}) {
   const client = getGeminiClient();
   if (!client) {
-    return buildCitizenChatFallback(message);
+    return buildCitizenChatFallback(message, userComplaints, userAddress);
   }
 
   try {
@@ -146,51 +170,138 @@ export async function chatWithCitizen({ message, history = [] }) {
       .map((m) => `${m.role === 'user' ? 'Citizen' : 'Assistant'}: ${m.content}`)
       .join('\n');
 
-    const prompt = `You are CivicClean Assistant, a helpful municipal waste-management chatbot for citizens.
-Capabilities:
-- Explain waste categories: organic, recyclable, plastic, electronic, hazardous, construction, medical, mixed, other.
-- Guide citizens through filing a text-based complaint (description, AI category check, GPS/map pin, address).
-- Give safe disposal advice (especially keeping hazardous/medical/e-waste separate from household bins).
-Keep responses concise, friendly, and practical.
+    const complaintsContext =
+      userComplaints.length > 0
+        ? userComplaints
+            .map(
+              (c) =>
+                `- ${c.complaintCode}: "${c.title}" | status=${c.status} | priority=${c.priority} | category=${c.wasteCategory} | address="${c.address}"`
+            )
+            .join('\n')
+        : 'None on record.';
 
-${recentHistory ? `Conversation so far:\n${recentHistory}\n` : ''}Citizen: ${message}
-Assistant:`;
+    const prompt = `You are CivicClean Assistant, an action-capable municipal waste-management AI assistant.
+Understand what the citizen wants and return STRICT JSON matching:
+{
+  "intent": "check_status" | "submit_complaint" | "general_help",
+  "reply": "clear, helpful response to the citizen",
+  "complaintCode": "SWM-..." or null,
+  "complaintDraft": {
+    "title": "short complaint title",
+    "description": "full waste issue description (>=10 chars)",
+    "wasteCategory": one of ${JSON.stringify(WASTE_CATEGORIES)},
+    "address": "street/location address",
+    "landmark": "optional landmark",
+    "estimatedWeightKg": number (default 50),
+    "readyToSubmit": boolean
+  } or null
+}
+
+Rules:
+1. If the citizen asks about complaint status/progress/tracking (or mentions an SWM-* code), set intent="check_status" and answer using ONLY the Verified Citizen Complaints below.
+2. If the citizen wants to report/file/submit a waste complaint, set intent="submit_complaint", extract fields, and set readyToSubmit=true ONLY when BOTH description (>=10 chars) and address (>=3 chars) are present. Otherwise set readyToSubmit=false and ask for the missing details.
+3. For general waste disposal or category questions, set intent="general_help".
+
+Citizen Profile Address: ${userAddress || 'Not provided'}
+Verified Citizen Complaints:
+${complaintsContext}
+
+${recentHistory ? `Conversation History:\n${recentHistory}\n` : ''}Citizen Message: ${message}`;
 
     const response = await Promise.race([
       client.models.generateContent({
         model: getModelName(),
-        contents: prompt
+        contents: prompt,
+        config: { responseMimeType: 'application/json' }
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini timeout')), getGeminiTimeoutMs()))
     ]);
 
-    const reply = (response.text || '').trim();
-    if (!reply) throw new Error('Empty Gemini response');
-    return { reply, modelUsed: getModelName(), fallbackUsed: false };
+    const parsed = chatIntentSchema.parse(JSON.parse(response.text || '{}'));
+    return { ...parsed, modelUsed: getModelName(), fallbackUsed: false };
   } catch (err) {
     console.warn('[Gemini chat fallback]', err?.message || err);
-    return buildCitizenChatFallback(message);
+    return buildCitizenChatFallback(message, userComplaints, userAddress);
   }
 }
 
-function buildCitizenChatFallback(message) {
+function buildCitizenChatFallback(message, userComplaints = [], userAddress = '') {
   const q = message.toLowerCase();
-  let reply =
-    'I can help you categorize waste, follow safe disposal rules, or file a municipal complaint. Go to "Submit Complaint", describe the issue in plain text, click "AI Categorize", and pin the spot on the map.';
+  const codeMatch = message.match(/SWM-\d{4}-[A-Z0-9]+/i);
 
-  if (q.includes('categor') || q.includes('type')) {
-    reply =
-      'Our municipality tracks 9 waste categories: Organic (food/garden), Recyclable (paper/glass/metal), Plastic, Electronic (e-waste), Hazardous (chemicals/batteries/paint), Construction debris, Medical (sharps/clinic waste), Mixed, and Other.';
-  } else if (q.includes('hazard') || q.includes('battery') || q.includes('chemical') || q.includes('medical')) {
-    reply =
-      'Never place hazardous, chemical, or medical waste in regular bins. Seal it safely, keep it away from drains, and submit a complaint with category "hazardous" or "medical" so a specialized van is dispatched.';
-  } else if (q.includes('submit') || q.includes('report') || q.includes('complaint') || q.includes('track')) {
-    reply =
-      'To report an issue: 1) Open "Submit Complaint", 2) Write a clear description with landmarks, 3) Click "AI Suggest Category" and verify it, 4) Click the map or "Use My GPS", and 5) Submit. Track progress anytime under "My Complaints".';
-  } else if (q.includes('e-waste') || q.includes('electronic') || q.includes('laptop') || q.includes('phone')) {
-    reply =
-      'Electronic waste (phones, batteries, cables, appliances) contains recoverable metals and toxic components. Select the "electronic" category for dedicated municipal e-waste pickup.';
+  if (
+    codeMatch ||
+    q.includes('status') ||
+    q.includes('track') ||
+    q.includes('my complaint') ||
+    q.includes('progress') ||
+    q.includes('update')
+  ) {
+    return {
+      intent: 'check_status',
+      complaintCode: codeMatch ? codeMatch[0].toUpperCase() : null,
+      complaintDraft: null,
+      reply:
+        userComplaints.length > 0
+          ? 'Here is the latest status of your complaints from our database.'
+          : 'You currently have no complaints on record.',
+      modelUsed: 'deterministic-fallback',
+      fallbackUsed: true
+    };
   }
 
-  return { reply, modelUsed: 'deterministic-fallback', fallbackUsed: true };
+  if (
+    q.includes('report') ||
+    q.includes('submit') ||
+    q.includes('file') ||
+    q.includes('complain') ||
+    q.includes('dump') ||
+    q.includes('overflow') ||
+    q.includes('garbage') ||
+    q.includes('waste at') ||
+    q.includes('waste near')
+  ) {
+    const cat = deterministicCategorize(message);
+    const addrMatch = message.match(/(?:at|near|on|outside|opposite)\s+([^,.!?;\n]{3,90})/i);
+    const weightMatch = message.match(/(\d+(?:\.\d+)?)\s*kg/i);
+    const address = addrMatch ? addrMatch[1].trim() : q.includes('my address') ? userAddress : '';
+    const readyToSubmit = Boolean(address && message.trim().length >= 10);
+
+    return {
+      intent: 'submit_complaint',
+      complaintCode: null,
+      complaintDraft: {
+        title: message.trim().slice(0, 72),
+        description: message.trim(),
+        wasteCategory: cat.suggestedCategory,
+        address: address || undefined,
+        estimatedWeightKg: weightMatch ? Math.max(1, Math.round(Number(weightMatch[1]))) : 50,
+        readyToSubmit
+      },
+      reply: readyToSubmit
+        ? `Submitting your ${cat.suggestedCategory} waste complaint at ${address}.`
+        : 'I can file that complaint for you right here — please include the street address or landmark (for example: "Report overflowing plastic waste at 14 MG Road").',
+      modelUsed: 'deterministic-fallback',
+      fallbackUsed: true
+    };
+  }
+
+  let reply =
+    'I can check your complaint status, file a new waste complaint directly from chat, or answer waste disposal questions.';
+  if (q.includes('categor') || q.includes('type')) {
+    reply =
+      'Our municipality tracks 9 waste categories: Organic, Recyclable, Plastic, Electronic, Hazardous, Construction debris, Medical, Mixed, and Other.';
+  } else if (q.includes('hazard') || q.includes('battery') || q.includes('chemical') || q.includes('medical')) {
+    reply =
+      'Never place hazardous, chemical, or medical waste in regular bins. Seal it safely, keep it away from drains, and report it under "hazardous" or "medical".';
+  }
+
+  return {
+    intent: 'general_help',
+    complaintCode: null,
+    complaintDraft: null,
+    reply,
+    modelUsed: 'deterministic-fallback',
+    fallbackUsed: true
+  };
 }

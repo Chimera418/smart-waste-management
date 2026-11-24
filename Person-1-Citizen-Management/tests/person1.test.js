@@ -113,7 +113,7 @@ describe('Person 1 — Citizen & Complaint Management API', () => {
     expect(c2.body.data.duplicateAnalysis.isPotentialDuplicate).toBe(true);
     expect(c2.body.data.duplicateAnalysis.candidates.length).toBeGreaterThan(0);
 
-    // 4. Chatbot persists history and notifications were created
+    // 4. Chatbot checks complaint status, submits complaint via chat, persists history, and clears
     const chatRes = await request(app)
       .post('/api/ai/chat')
       .set('Authorization', `Bearer ${token}`)
@@ -121,11 +121,27 @@ describe('Person 1 — Citizen & Complaint Management API', () => {
     expect(chatRes.status).toBe(200);
     expect(chatRes.body.data.reply.toLowerCase()).toContain('hazardous');
 
+    const statusChat = await request(app)
+      .post('/api/ai/chat')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'Check status of my complaints' });
+    expect(statusChat.status).toBe(200);
+    expect(statusChat.body.data.actionType).toBe('status_lookup');
+    expect(statusChat.body.data.actionData.complaints.length).toBe(2);
+
+    const submitChat = await request(app)
+      .post('/api/ai/chat')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'Report overflowing organic food waste at 42 Market Lane, around 75kg' });
+    expect(submitChat.status).toBe(200);
+    expect(submitChat.body.data.actionType).toBe('complaint_created');
+    expect(submitChat.body.data.actionData.complaint.complaintCode).toMatch(/^SWM-/);
+
     const chatHist = await request(app)
       .get('/api/ai/chat/history')
       .set('Authorization', `Bearer ${token}`);
     expect(chatHist.status).toBe(200);
-    expect(chatHist.body.data.length).toBe(2);
+    expect(chatHist.body.data.length).toBe(6);
 
     const chatClear = await request(app)
       .delete('/api/ai/chat/history')
@@ -141,6 +157,6 @@ describe('Person 1 — Citizen & Complaint Management API', () => {
       .get('/api/notifications')
       .set('Authorization', `Bearer ${token}`);
     expect(notifRes.status).toBe(200);
-    expect(notifRes.body.data.unreadCount).toBe(2);
+    expect(notifRes.body.data.unreadCount).toBe(3);
   });
 });

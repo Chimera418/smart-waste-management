@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { HardHat, MapPin, Sparkles, Truck } from 'lucide-react';
 import api from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
+import { usePolling } from '../hooks/usePolling';
 import type { Vehicle, Worker } from '../types';
 
 export function AdminDispatchPage() {
@@ -15,7 +17,7 @@ export function AdminDispatchPage() {
   const [vehicleId, setVehicleId] = useState('');
   const [msg, setMsg] = useState('');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [cRes, wRes, vRes] = await Promise.all([
       api.get('/complaints'),
       api.get('/workers'),
@@ -24,11 +26,13 @@ export function AdminDispatchPage() {
     setComplaints(cRes.data.data || []);
     setWorkers(wRes.data.data || []);
     setVehicles(vRes.data.data || []);
-  };
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
+
+  usePolling(load, 5000, true);
 
   const estimateAiPriority = async (c: any) => {
     const res = await api.post('/ai/priority', {
@@ -91,7 +95,7 @@ export function AdminDispatchPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Complaints, AI Priority & Task Dispatch</h1>
         <p className="text-sm text-slate-600">
-          Run Gemini priority estimation, override priorities, run intelligent vehicle recommendation, and dispatch tasks.
+          Inspect assigned workers & vehicles, run Gemini priority estimation, and dispatch optimal fleet units.
         </p>
       </div>
 
@@ -103,50 +107,91 @@ export function AdminDispatchPage() {
 
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white lg:col-span-7">
-          {complaints.map((c) => (
-            <div key={c._id} className="space-y-2 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-slate-500">{c.complaintCode}</span>
-                  <StatusBadge value={c.priority} />
-                  <StatusBadge value={c.status} />
+          {complaints.map((c) => {
+            const task = c.assignedTaskId;
+            const worker = task?.assignedWorkerId;
+            const vehicle = task?.assignedVehicleId;
+            return (
+              <div key={c._id} className="space-y-2.5 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-slate-500">{c.complaintCode}</span>
+                    <StatusBadge value={c.priority} />
+                    <StatusBadge value={c.status} />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => estimateAiPriority(c)}
+                      className="inline-flex items-center gap-1 rounded bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-800"
+                    >
+                      <Sparkles className="h-3 w-3" /> AI Priority
+                    </button>
+                    <select
+                      value={c.priority}
+                      onChange={(e) => overridePriority(c, e.target.value)}
+                      className="rounded border border-slate-300 px-2 py-1 text-xs"
+                    >
+                      <option value="low">low</option>
+                      <option value="medium">medium</option>
+                      <option value="high">high</option>
+                      <option value="critical">critical</option>
+                    </select>
+                    <button
+                      onClick={() => runRecommender(c)}
+                      disabled={c.status === 'resolved'}
+                      className="rounded bg-teal-600 px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-40"
+                    >
+                      {task ? 'Reassign' : 'Dispatch'}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => estimateAiPriority(c)}
-                    className="inline-flex items-center gap-1 rounded bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-800"
-                  >
-                    <Sparkles className="h-3 w-3" /> AI Priority
-                  </button>
-                  <select
-                    value={c.priority}
-                    onChange={(e) => overridePriority(c, e.target.value)}
-                    className="rounded border border-slate-300 px-2 py-1 text-xs"
-                  >
-                    <option value="low">low</option>
-                    <option value="medium">medium</option>
-                    <option value="high">high</option>
-                    <option value="critical">critical</option>
-                  </select>
-                  <button
-                    onClick={() => runRecommender(c)}
-                    className="rounded bg-teal-600 px-2.5 py-1 text-xs font-semibold text-white"
-                  >
-                    Dispatch
-                  </button>
-                </div>
-              </div>
-              <p className="text-sm font-semibold text-slate-900">{c.title}</p>
-              <p className="text-xs text-slate-600">
-                {c.address} · Category: <strong className="capitalize">{c.wasteCategory}</strong>
-                {c.duplicateAnalysis?.isPotentialDuplicate && (
-                  <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800">
-                    Potential Duplicate Flagged
-                  </span>
+
+                <p className="text-sm font-semibold text-slate-900">{c.title}</p>
+                <p className="text-xs text-slate-600">
+                  {c.address} · Category: <strong className="capitalize">{c.wasteCategory}</strong>
+                  {c.zoneId?.code && <span className="ml-2 text-slate-500">· Zone {c.zoneId.code}</span>}
+                  {c.duplicateAnalysis?.isPotentialDuplicate && (
+                    <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800">
+                      Potential Duplicate Flagged
+                    </span>
+                  )}
+                </p>
+
+                {task ? (
+                  <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-2.5 text-xs text-slate-800">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-sky-800">{task.taskCode}</span>
+                        <StatusBadge value={task.status} />
+                      </div>
+                      <Link
+                        to="/tracking"
+                        className="inline-flex items-center gap-1 font-semibold text-sky-700 hover:underline"
+                      >
+                        <MapPin className="h-3 w-3" /> View on Live Map →
+                      </Link>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-700">
+                      <span className="inline-flex items-center gap-1">
+                        <HardHat className="h-3.5 w-3.5 text-teal-700" />
+                        Worker: <strong>{worker?.userId?.name || 'Assigned'}</strong> ({worker?.employeeCode})
+                        {worker?.userId?.phone ? ` · ${worker.userId.phone}` : ''}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <Truck className="h-3.5 w-3.5 text-sky-700" />
+                        Vehicle: <strong>{vehicle?.registrationNumber}</strong> ({vehicle?.name})
+                        {vehicle?.operatorId?.name ? ` · Op: ${vehicle.operatorId.name}` : ''}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="inline-block rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                    Unassigned — needs dispatch
+                  </div>
                 )}
-              </p>
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
 
         <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 lg:col-span-5">

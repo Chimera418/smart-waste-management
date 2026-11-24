@@ -5,8 +5,8 @@
   "type": "module",
   "description": "CivicClean SWM — Complete Integrated Smart Waste Management System",
   "scripts": {
-    "dev": "concurrently -n API,WEB -c blue,emerald \"node server/dev.js\" \"vite\"",
-    "dev:api": "node server/dev.js",
+    "dev": "concurrently -n API,WEB -c blue,emerald \"node --watch server/dev.js\" \"vite\"",
+    "dev:api": "node --watch server/dev.js",
     "dev:web": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",

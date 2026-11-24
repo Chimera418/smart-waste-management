@@ -1,14 +1,12 @@
 import express from 'express';
 import { z } from 'zod';
 import { Complaint } from '../shared/models/Complaint.js';
-import { CollectionZone } from '../shared/models/CollectionZone.js';
-import { Notification } from '../shared/models/Notification.js';
 import { WASTE_CATEGORIES } from '../shared/config/constants.js';
 import { authenticate, authorize } from '../shared/middleware/auth.js';
 import { validateBody } from '../shared/middleware/validate.js';
-import { categorizeWasteComplaint } from '../shared/services/geminiService.js';
 import { detectPotentialDuplicates } from '../shared/services/duplicateService.js';
-import { AppError, asyncHandler, generateCode, sendSuccess } from '../shared/utils/response.js';
+import { createComplaintRecord } from '../shared/services/complaintService.js';
+import { AppError, asyncHandler, sendSuccess } from '../shared/utils/response.js';
 
 const router = express.Router();
 
@@ -96,83 +94,10 @@ router.post(
   authorize('citizen', 'admin'),
   validateBody(createComplaintSchema),
   asyncHandler(async (req, res) => {
-    const { title, description, coordinates, address, landmark, estimatedWeightKg } = req.body;
-
-    // Run Gemini categorization if user didn't already run preview categorization
-    let aiCat = null;
-    if (req.body.aiSuggestedCategory) {
-      aiCat = {
-        suggestedCategory: req.body.aiSuggestedCategory,
-        confidence: req.body.aiConfidence ?? 0.8,
-        issueType: req.body.aiIssueType || 'Citizen-Verified Waste Issue',
-        summary: req.body.aiSummary || description.slice(0, 180),
-        keywords: req.body.aiKeywords || [],
-        modelUsed: req.body.aiModelUsed || 'gemini-3-flash-preview',
-        fallbackUsed: Boolean(req.body.aiFallbackUsed)
-      };
-    } else {
-      aiCat = await categorizeWasteComplaint({ title, description });
-    }
-
-    const finalCategory = req.body.wasteCategory || aiCat.suggestedCategory;
-    const duplicateAnalysis = await detectPotentialDuplicates({
-      title,
-      description,
-      coordinates,
-      wasteCategory: finalCategory,
-      useAiContext: true
-    });
-
-    const matchedZone = await CollectionZone.findOne({
-      isActive: true,
-      boundary: {
-        $geoIntersects: {
-          $geometry: { type: 'Point', coordinates }
-        }
-      }
-    }).select('_id name code');
-
-    const defaultHours = finalCategory === 'hazardous' || finalCategory === 'medical' ? 12 : 48;
-    const slaDeadline = new Date(Date.now() + defaultHours * 3600 * 1000);
-
-    const complaint = await Complaint.create({
-      complaintCode: generateCode('SWM'),
-      citizenId: req.user._id,
-      title,
-      description,
-      wasteCategory: finalCategory,
-      aiCategorization: {
-        ...aiCat,
-        userAccepted: finalCategory === aiCat.suggestedCategory
-      },
-      priority: finalCategory === 'hazardous' || finalCategory === 'medical' ? 'high' : 'medium',
-      estimatedWeightKg,
-      location: { type: 'Point', coordinates },
-      address,
-      landmark,
-      zoneId: matchedZone?._id,
-      status: 'submitted',
-      statusHistory: [
-        {
-          status: 'submitted',
-          note: duplicateAnalysis.isPotentialDuplicate
-            ? 'Complaint registered with potential nearby duplicate flagged for review.'
-            : 'Complaint submitted by citizen.',
-          changedBy: req.user._id
-        }
-      ],
-      duplicateAnalysis,
-      slaDeadline
-    });
-
-    await Notification.create({
-      recipientId: req.user._id,
-      recipientRole: req.user.role,
-      type: 'complaint_submitted',
-      title: `Complaint ${complaint.complaintCode} Registered`,
-      message: `Your ${finalCategory} waste complaint at ${address} has been logged and queued for triage.`,
-      relatedEntityType: 'complaint',
-      relatedEntityId: complaint._id
+    const complaint = await createComplaintRecord({
+      user: req.user,
+      payload: req.body,
+      source: 'portal'
     });
 
     return sendSuccess(res, {
